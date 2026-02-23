@@ -1,0 +1,62 @@
+QWidget
+{
+    background-color: #222222;
+    color: #cccccc;
+}
+
+QListWidget
+{
+    border: 2px solid #808080;
+    border-radius: 3px;
+    background: #1e1724;
+}
+
+QToolButton
+{
+    font-size: 8pt;
+}
+
+QListWidget::item
+{
+    background: #303030;
+    border-bottom: 1px solid #606060;
+}
+
+QListWidget::item:alternate {
+    background: #202020;
+}
+
+QListView::item:selected {
+    background: #4d4100;
+}
+
+QListWidget::item QLabel
+{
+    background: transparent;
+}
+
+QLabel#LpLabel
+{
+    font-size: 14pt;
+    font-weight: bold;
+}
+
+QLabel#LpDirTxt
+{
+    font-size: 7pt;
+}
+
+QLabel#LpTs
+{
+    margin-left: 10px;
+}
+
+QWidget#VideoProgress
+{
+    background: rgba( 0, 0, 0, 170 );
+}
+
+VideoProgressWidget QLabel
+{
+    background: transparent;
+}

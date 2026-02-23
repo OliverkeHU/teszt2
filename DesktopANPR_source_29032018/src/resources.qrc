@@ -1,0 +1,14 @@
+<RCC>
+    <qresource prefix="/">
+        <file>styles/main.qss</file>
+        <file>images/dir_appr.png</file>
+        <file>images/dir_mova.png</file>
+        <file>images/dir_und.png</file>
+        <file>images/control_pause.png</file>
+        <file>images/control_play.png</file>
+        <file>images/control_stop.png</file>
+        <file>images/sci.jpg</file>
+        <file>images/open_file_img.png</file>
+        <file>images/open_file_vid.png</file>
+    </qresource>
+</RCC>

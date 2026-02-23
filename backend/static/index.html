@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OFFLINE RENDSZÁMFELOLVASÓ | OPS CENTER</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .preview-container{
+      position:relative;
+      margin-top:10px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+      background:#000;
+      min-height:300px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    #previewPlaceholder{
+      position:absolute;
+      z-index:1;
+      color:var(--muted);
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:2px;
+      text-align:center;
+    }
+    #imgPreview, #videoPreview{
+      position:relative;
+      z-index:2;
+      width:100%;
+      display:none;
+      border-radius:8px;
+    }
+    #videoPreview{
+      background:#000;
+    }
+
+    /* KIMENET: annotált videó/kép */
+    #outputPanel{
+      margin-top:12px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px;
+      background: rgba(7,11,18,.18);
+    }
+    #outputTitle{
+      font-size:11px;
+      letter-spacing:1px;
+      color:var(--muted);
+      font-weight:800;
+      margin-bottom:8px;
+      font-family: monospace;
+    }
+    #imgOutput, #videoOutput{
+      width:100%;
+      border-radius:10px;
+      border:1px solid var(--border);
+      display:none;
+      background:#000;
+    }
+
+    .scanner-line{
+      position:absolute;
+      top:0;
+      left:0;
+      width:100%;
+      height:4px;
+      background:linear-gradient(to right, transparent, var(--accent), transparent);
+      box-shadow:0 0 15px var(--accent);
+      opacity:0;
+      z-index:10;
+      pointer-events:none;
+    }
+    @keyframes scanAnim{
+      0%{ top:0; opacity:1; }
+      100%{ top:100%; opacity:1; }
+    }
+    .scanner-active{ animation:scanAnim 1.5s linear infinite; }
+
+    .topbar-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .icon-btn{
+      width:38px; height:38px;
+      border-radius:12px;
+      display:grid; place-items:center;
+      border:1px solid var(--border);
+      background: rgba(10,16,28,.6);
+      color:var(--text);
+      cursor:pointer;
+      font-size:16px;
+      user-select:none;
+    }
+    .icon-btn:hover{ border-color: rgba(58,163,255,.45); }
+
+    /* crop panel – minimalista */
+    #cropPanel{
+      margin-top:12px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px;
+      background: rgba(7,11,18,.18);
+    }
+    #cropTitle{
+      font-size:11px;
+      letter-spacing:1px;
+      color:var(--muted);
+      font-weight:800;
+      margin-bottom:8px;
+      font-family: monospace;
+    }
+    #cropStrip{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:flex-start;
+    }
+    .cropItem{
+      border:1px solid var(--border);
+      border-radius:10px;
+      overflow:hidden;
+      background:#000;
+    }
+    .cropItem img{
+      display:block;
+      max-width:360px;
+      height:auto;
+    }
+    .cropLabel{
+      font-family: monospace;
+      font-size:11px;
+      color:var(--muted);
+      padding:6px 8px;
+      background: rgba(0,0,0,.35);
+    }
+
+    /* Video opciók panel */
+    #videoOptions{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-start;
+      font-family: monospace;
+      font-size:12px;
+      color:var(--muted);
+    }
+    #videoOptions input{
+      width:90px;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(10,16,28,.6);
+      color: var(--text);
+      outline: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="container">
+      <div class="topbar__inner">
+        <div class="brand">
+          <div class="brand__logo" style="background: var(--accent); color: #000; font-weight: bold;">ID</div>
+          <div>
+            <div class="brand__name">OFFLINE RENDSZÁMFELOLVASÓ</div>
+            <div class="brand__tag">INTELLIGENS FELDERÍTŐ RENDSZER • V3.8</div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div id="status" class="status ok">SYSTEM: ONLINE</div>
+          <button id="themeToggle" class="icon-btn" title="Sötét/Világos">🌙</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="container">
+      <div class="hero__grid">
+        <div class="hero__content">
+          <div class="kicker" style="background: rgba(58, 163, 255, 0.2); color: var(--accent2);">ANALÍZIS ÉS PROFILOZÁS</div>
+          <h1>Műveleti Központ</h1>
+          <p class="muted">Automatizált rendszámfelismerés, színanalízis és járműadat-lekérés.</p>
+
+          <div class="hero__cta">
+            <!-- FONTOS: accept most már videót is -->
+            <input type="file" id="fileInput" accept="image/*,video/*" style="display:none;">
+            <button class="btn btn--primary" id="btnImport">FÁJL IMPORTÁLÁSA</button>
+            <button class="btn" id="btnClear">RENDSZER RESET</button>
+            <button class="btn" id="btnForensic" title="Forenzikus mód (lassabb, de erősebb mentőöv)">FORENSIC: OFF</button>
+          </div>
+
+          <div id="videoOptions" title="Videó feldolgozás: kisebb stride = pontosabb, nagyobb = gyorsabb">
+            <span>VIDEÓ STRIDE:</span>
+            <input id="videoStride" type="number" min="1" max="20" value="3">
+            <span>MAX mp (0=∞):</span>
+            <input id="videoMaxSeconds" type="number" min="0" max="999999" value="0">
+          </div>
+
+          <div class="pillrow">
+            <div class="pill">OFFLINE</div>
+            <div class="pill">YOLO (Ultralytics/ONNX)</div>
+            <div class="pill">HU OCR</div>
+          </div>
+        </div>
+
+        <div class="card card--hud" style="position: relative; overflow: hidden;">
+          <canvas id="digitalRainCanvas" style="position:absolute; inset:0; width:100%; height:100%; opacity:0.15; pointer-events:none;"></canvas>
+          <div class="card__title">TERMINÁL NAPLÓ</div>
+          <div id="systemLog" style="height:110px; overflow-y:auto; font-family:monospace; font-size:11px; color: var(--muted); padding: 5px; background: rgba(0,0,0,0.3); border-radius: 4px; position: relative; z-index: 2;">
+            <div>> Rendszer készenlétben...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="container">
+      <div class="grid2">
+        <div class="card">
+          <div class="card__title">ADATFORRÁS: IMPORTÁLT MÉDIA</div>
+
+          <div class="preview-container">
+            <div id="previewPlaceholder">VÁRAKOZÁS BEMENETI ADATRA...</div>
+            <img id="imgPreview" src="">
+            <video id="videoPreview" controls playsinline></video>
+            <div id="scannerLine" class="scanner-line"></div>
+          </div>
+
+          <!-- CROP -->
+          <div id="cropPanel">
+            <div id="cropTitle">CROP (RENDSZÁMKIVÁGÁS) – EBBŐL DOLGOZIK AZ OCR</div>
+            <div id="cropStrip"></div>
+          </div>
+
+          <!-- KIMENET: annotált -->
+          <div id="outputPanel">
+            <div id="outputTitle">KIMENET (ANNOTÁLT) – VISSZAJÁTSZHATÓ VIDEÓ / KÉP</div>
+            <img id="imgOutput" src="">
+            <video id="videoOutput" controls playsinline></video>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__title">ADATFORRÁS: ÉLŐ VIDEOSTREAM</div>
+          <div style="position: relative; border-radius:12px; overflow:hidden; border: 1px solid var(--border);">
+            <video id="video" autoplay playsinline style="width:100%; background:#000; display:block;"></video>
+          </div>
+          <canvas id="canvas" style="display:none;"></canvas>
+
+          <div class="row" style="margin-top:10px;">
+            <button id="btnCamStart" class="btn btn--primary" style="flex:1;">KAMERA AKTIVÁLÁSA</button>
+            <button id="btnCapture" class="btn" style="flex:1;">RÖGZÍTÉS + SCAN</button>
+          </div>
+
+          <div class="small muted" style="margin-top:8px; line-height:1.4;">
+            Tipp: iPhone-on a kamera csak HTTPS alatt megy. PC-n (localhost) működik.
+          </div>
+        </div>
+      </div>
+
+      <div class="result" style="margin-top:30px;">
+        <div class="section__head">
+          <h2 id="resultMeta">ANALÍZIS VÁRAKOZIK</h2>
+        </div>
+        <div id="resultList" class="result__list">
+          <div class="empty-state">Várakozás bemeneti jelre...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

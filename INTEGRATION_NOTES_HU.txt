@@ -1,0 +1,29 @@
+ZsiguliANPR – projektcsere összefoglaló
+
+Mi történt?
+- Az "offline-platereader" projekt motor részét lecseréltem az ARH DesktopANPR csomagra.
+- A következő fájlok változatlanul megmaradtak az eredeti projektből (kérés szerint):
+  - backend/static/index.html
+  - backend/static/app.js
+  - backend/static/styles.css
+
+Mit tartalmaz az új projekt?
+- DesktopANPR_source_29032018/ : az ARH Desktop ANPR demo app teljes forrása, adatai és a Windows prebuilt bináris is.
+  - A prebuilt futtatható állomány: DesktopANPR_source_29032018/DesktopANPR_prebuilt_mingw32_530_x86/DesktopAnpr.exe
+  - A motor adatfájl: lpr.lprdat (a prebuilt mappában is benne van)
+
+Fontos:
+- Az ARH csomag alapból egy Qt alapú asztali demo alkalmazás, nem webes API.
+- A régi FastAPI backend kódját NEM hoztam át, mert a kérés szerint minden cserélhető volt a három statikus fájlon kívül.
+
+Ha azt szeretnéd, hogy a web UI (app.js) továbbra is működjön (pl. /api/recognize és /api/recognize_video végpontokkal), akkor kell egy új backend, ami:
+- vagy a DesktopAnpr.exe-t hívja (ha van CLI / automatizálható mód),
+- vagy közvetlenül beépíti az engine kódot és REST API-t ad rá.
+
+Ha írsz egy rövid célt (Windows/Linux, CLI elvárás, API kompatibilitás: pontosan ugyanazok a végpontok maradjanak-e), készítek hozzá egy működő integrációs backendet.
+
+
+--- WEBES HASZNÁLAT (HTML + FastAPI) ---
+A backend FastAPI a frontend statikus oldalt szolgálja ki (backend/static), és az /api/recognize endpointon futtatja az ARH motort.
+Ehhez le kell fordítani a headless CLI-t: DesktopANPR_source_29032018/src_cli/ArhCli.pro -> backend/bin/arh_anpr_cli.exe
+Indítás Windows-on: run.bat, majd böngésző: http://127.0.0.1:8000
