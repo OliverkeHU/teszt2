@@ -6,44 +6,118 @@ on:
 jobs:
   build-mingw:
     runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      QT_VERSION: "5.15.2"
+      QT_ARCH: "win64_mingw81"
+      QT_DIR: "${{ github.workspace }}\\Qt"
+      QT_BIN: "${{ github.workspace }}\\Qt\\5.15.2\\mingw81_64\\bin"
+      MINGW_BIN: "${{ github.workspace }}\\Qt\\Tools\\mingw810_64\\bin"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Qt (Open Source) - MinGW
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ---- Qt install (via aqtinstall, used internally by install-qt-action) ----
+      - name: Install Qt (5.15.2 MinGW 8.1 64-bit)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '5.15.2'
-          arch: 'win64_mingw81'
-          tools: 'tools_mingw,8.1.0-1'
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          dir: ${{ env.QT_DIR }}
+          cache: true
 
-      - name: Build (qmake + mingw32-make)
-        shell: pwsh
+      # ---- Install MinGW 8.1 toolchain via aqt ----
+      - name: Install aqtinstall
         run: |
-          $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force -Path build | Out-Null
-          Push-Location build
-          qmake ..\DesktopANPR_source_29032018\src_cli\ArhCli.pro CONFIG+=release
-          mingw32-make -j2
-          Pop-Location
+          python -m pip install --upgrade pip
+          python -m pip install "aqtinstall==3.3.*"
 
-      - name: Package (windeployqt)
-        shell: pwsh
+      - name: List available MinGW tool variants (debug)
         run: |
-          $ErrorActionPreference = "Stop"
-          $exe = Get-ChildItem -Path build -Recurse -Filter "arh_anpr_cli.exe" | Select-Object -First 1
-          if (-not $exe) { throw "arh_anpr_cli.exe not found after build." }
+          python -m aqt list-tool windows desktop tools_mingw -l
 
-          New-Item -ItemType Directory -Force -Path dist\arh_cli | Out-Null
-          Copy-Item $exe.FullName dist\arh_cli\arh_anpr_cli.exe -Force
+      - name: Install MinGW toolchain (mingw810_64)
+        run: |
+          python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 --outputdir "${{ env.QT_DIR }}"
 
-          Push-Location dist\arh_cli
-          # Deploy Qt runtime next to the exe (keeps it portable)
-          windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw .\arh_anpr_cli.exe
-          Pop-Location
+      - name: Add Qt + MinGW to PATH
+        run: |
+          echo "${{ env.QT_BIN }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "${{ env.MINGW_BIN }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify toolchain
+        run: |
+          qmake -v
+          gcc --version
+          g++ --version
+          mingw32-make --version
+
+      # ---- Build ARH CLI ----
+      # IMPORTANT: adjust the .pro path if your repo structure differs
+      - name: Build ARH CLI (Release)
+        working-directory: DesktopANPR_source_29032018/src_cli
+        run: |
+          qmake ArhCli.pro "CONFIG+=release"
+          mingw32-make -j 2
+
+      # ---- Collect output ----
+      - name: Prepare artifact folder
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          New-Item -ItemType Directory -Force -Path out\platforms | Out-Null
+
+      - name: Copy built exe
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter *.exe -Path DesktopANPR_source_29032018/src_cli | Where-Object {
+            $_.Name -match "ArhCli|arh|anpr|cli"
+          } | Select-Object -First 1
+
+          if (-not $exe) {
+            # fallback: common Qt build output locations
+            $exe = Get-ChildItem -Recurse -Filter *.exe -Path DesktopANPR_source_29032018 | Select-Object -First 1
+          }
+
+          if (-not $exe) {
+            Write-Error "Could not find built exe."
+            exit 1
+          }
+
+          Copy-Item $exe.FullName out\arh_anpr_cli.exe -Force
+          Write-Host "Picked exe:" $exe.FullName
+
+      - name: Deploy Qt runtime (windeployqt)
+        run: |
+          # windeployqt is in Qt bin; ensure it's available
+          $wdq = "${{ env.QT_BIN }}\windeployqt.exe"
+          if (-not (Test-Path $wdq)) {
+            Write-Error "windeployqt.exe not found at $wdq"
+            exit 1
+          }
+
+          & $wdq --release --no-translations --no-system-d3d-compiler --no-opengl-sw out\arh_anpr_cli.exe
+
+          # Some builds need libstdc++/libgcc/winpthread рядом
+          $deps = @("libstdc++-6.dll","libgcc_s_seh-1.dll","libwinpthread-1.dll")
+          foreach ($d in $deps) {
+            $p = Join-Path "${{ env.MINGW_BIN }}" $d
+            if (Test-Path $p) { Copy-Item $p out\ -Force }
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: arh_anpr_cli_windows_mingw
-          path: dist/arh_cli
+          path: out
+          if-no-files-found: error
