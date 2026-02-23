@@ -1,0 +1,49 @@
+name: Build ARH CLI (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mingw:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt (Open Source) - MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          arch: 'win64_mingw81'
+          tools: 'tools_mingw,8.1.0-1'
+
+      - name: Build (qmake + mingw32-make)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          Push-Location build
+          qmake ..\DesktopANPR_source_29032018\src_cli\ArhCli.pro CONFIG+=release
+          mingw32-make -j2
+          Pop-Location
+
+      - name: Package (windeployqt)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Get-ChildItem -Path build -Recurse -Filter "arh_anpr_cli.exe" | Select-Object -First 1
+          if (-not $exe) { throw "arh_anpr_cli.exe not found after build." }
+
+          New-Item -ItemType Directory -Force -Path dist\arh_cli | Out-Null
+          Copy-Item $exe.FullName dist\arh_cli\arh_anpr_cli.exe -Force
+
+          Push-Location dist\arh_cli
+          # Deploy Qt runtime next to the exe (keeps it portable)
+          windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw .\arh_anpr_cli.exe
+          Pop-Location
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arh_anpr_cli_windows_mingw
+          path: dist/arh_cli
